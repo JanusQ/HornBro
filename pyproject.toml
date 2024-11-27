@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]  # 构建所需工具
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hornbro"  # 项目名称
+version = "0.1.0"  # 版本号
+description = "a tool for automated program repair using Homotopy-like Method for Automated Quantum Program Repairt"  # 项目描述
+readme = "README.md"  # 长描述文件
+license = {text = "MIT"}  # 许可证
+authors = [
+    {name = "Debin Xiang", email = "debinxiang.zju@gmail.com"}
+]
+requires-python = ">=3.10"  # 替代 `python`
+urls = {homepage = "https://github.com/your_username/your_project"}  # 替代 `homepage`
+
+keywords = ["example", "project"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "jax",
+    "jaxlib",
+    "matplotlib",
+    "networkx",
+    "numpy",
+    "pandas",
+    "mqt.ddsim",
+    "ray",
+    "scikit_learn",
+    "tqdm",
+    "gurobipy",
+    "qiskit",
+    "qiskit_algorithms",
+    "pennylane",
+    "optax",
+    "openai",
+    "bqskit",
+    "z3-solver",
+    "mqt.bench",
+]
+
+[project.scripts]
+gendataset = "hornbro.dataset.random_dataset:main"
+
+[tool.setuptools.packages]
+find = {}
+

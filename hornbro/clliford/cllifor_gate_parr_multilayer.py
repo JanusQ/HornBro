@@ -204,7 +204,7 @@ class ConstraintsGenerator:
                 for q in range(self.n):
                     for gate in self.singleq_gates:
                         self.apply_gate_var(gate,[q],getattr(self, gate + "vars")[q][2*didx])
-                    # self.simplify_tab()、
+                    # self.simplify_tab()
                 for q in range(self.n):
                     for t in range(self.n):
                         if q!= t:
@@ -612,6 +612,8 @@ class CllifordCorrecter:
                 # print("Satisfied soft constraints portion(%): ", (satisfied_num/len(self.soft_constraints))**100)
             start = perf_counter()
             didx = 0
+            insert_idxes = []
+            insert_qubits = []
             for d in range(len(self.program)):
                 fix_program.append(self.program[d])
                 if d not in self.insert_layer_indexes:
@@ -622,6 +624,8 @@ class CllifordCorrecter:
                             method = getattr(fix_program, gate.lower())
                             if m[getattr(self, gate + "vars")[q][2*didx]]:
                                 method(q)
+                                insert_idxes.append(d)
+                                insert_qubits.append(q)
                     for q in range(self.n):
                         for t in range(self.n):
                             if q!= t:
@@ -629,12 +633,19 @@ class CllifordCorrecter:
                                     method = getattr(fix_program, gate.lower())
                                     if m[getattr(self, gate + "vars")[q][t][didx]]:
                                         method(q,t)
+                                        insert_idxes.append(d)
+                                        insert_qubits.append((q,t))
                     for q in range(self.n):
                         for gate in self.singleq_gates:
                             method = getattr(fix_program, gate.lower())
                             if m[getattr(self, gate + "vars")[q][2*didx+1]]:
                                 method(q)
+                                insert_idxes.append(d)
+                                insert_qubits.append(q)
                     didx += 1
             end = perf_counter()
+            self.insert_idxes = insert_idxes
+            self.insert_qubits = insert_qubits
+            
             print("Read Circuit Time elapsed: ", end-start)
             return fix_program

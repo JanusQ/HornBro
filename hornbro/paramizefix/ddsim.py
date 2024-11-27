@@ -6,9 +6,9 @@ import pennylane as qml
 import numpy as np
 from jax import config
 from qiskit import QuantumCircuit
-from bugfix.circuit import Circuit
+from hornbro.circuit import Circuit
 from tqdm import tqdm
-from bugfix.optimizer import OptimizingHistory
+from hornbro.optimizer import OptimizingHistory
 
 config.update("jax_enable_x64", True)
 

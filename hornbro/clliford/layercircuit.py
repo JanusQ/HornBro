@@ -410,6 +410,18 @@ class LayerCllifordProgram(list):
         return qiskit_circuit
 
 
+    def to_list(self):
+        """ convert the layer_circuit to a list of gates
+        Returns:
+            list: the list of gates
+        """
+        layer_list = []
+        for layer in self:
+            layer_list.extend(layer)
+        return layer_list
+
+
+
     @classmethod
     def random_clifford_program(cls, n_qubits: int, depth: int, gate_portion: dict = {'h': 0.2, 's': 0.2, 'cnot': 0.6}):
         """

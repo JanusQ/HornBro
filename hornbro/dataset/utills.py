@@ -1,5 +1,7 @@
 import numpy as np
 from qiskit.quantum_info import random_clifford,Clifford
+from qiskit.circuit.library import HGate, SGate, SdgGate, CXGate, CZGate, IGate, XGate, YGate, ZGate, TGate, TdgGate,RXGate, RYGate, RZGate, CRXGate
+
 from qiskit import QuantumCircuit, transpile
 import random
 

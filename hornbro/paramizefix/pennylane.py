@@ -5,10 +5,10 @@ from jax import numpy as jnp
 from jax import grad, jit
 import numpy as np
 import optax
-from jax.config import config
+from jax import config
 from qiskit import QuantumCircuit
 from sklearn.utils import shuffle
-from bugfix.circuit import Circuit
+from hornbro.circuit import Circuit
 from tqdm import tqdm
 from random import randint
 

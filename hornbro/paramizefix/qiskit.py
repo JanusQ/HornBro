@@ -8,8 +8,8 @@ from qiskit_aer import Aer,AerSimulator,StatevectorSimulator
 import random
 from tqdm import tqdm
 
-from bugfix.clliford.clliford_gate_variables import CllifordCorrecter
-from bugfix.clliford.utills import CllifordProgram, generate_inout_stabilizer_tables
+from hornbro.clliford.clliford_gate_variables import CllifordCorrecter
+from hornbro.clliford.utills import CllifordProgram, generate_inout_stabilizer_tables
 def generate_bugged_circuit(correct_circuit, n_errors: int=2):
     bugged_circuit = correct_circuit.copy()
     # n_gates = len(correct_circuit.data)
