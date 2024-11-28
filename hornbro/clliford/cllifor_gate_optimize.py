@@ -121,6 +121,7 @@ class ConstraintsGenerator:
             solver.add(And(*self.soft_constraints))
         else:
             solver = Solver()
+            solver.set("logic", "QF_LIA")
             # for cons in self.soft_constraints:
             #     solver.add(simplify(cons))
             solver.add(And(*self.soft_constraints))
@@ -555,32 +556,20 @@ class CllifordCorrecter:
         """
         self.constraintssmt2= ray.get([add_iout_parrelell.remote(self.n,input_stabilizer_tables[i].to_dict(),output_stabilizer_tables[i].to_dict(),list(self.program),is_soft= self.is_soft,singleq_gates= self.singleq_gates, twoq_gates= self.twoq_gates, insert_layer_indexes= self.insert_layer_indexes) for i in range(len(input_stabilizer_tables))])
         
-        # self.constraintssmt2= [add_iout_parrelell(input_stabilizer_tables[i].to_dict(),output_stabilizer_tables[i].to_dict(),self.is_soft,self.program,self.singleq_gates,self.twoq_gates) for i in range(len(input_stabilizer_tables))]
         
-                
-        
-        
-    
-    
-    def solve(self,minimize_gates:bool=False):
+    def solve(self):
         """
         Solves the Clliford solver.
         """
         # self.unique_gate()
         # self.inverse_cancel()
-        if self.is_soft or minimize_gates:
-            s = Optimize()
-            # s.minimize(Sum(self.Xvars[q][d] for q in range(self.n) for d in range(2*self.d_max)))
-        else:
-            s = Solver()
-        for c in self.constraints:
-            s.add(c)
+        
+        s = Solver()
+        s.set("logic", "QF_UF")
         alllines = []
         filelines = []
         for file in self.constraintssmt2:
             try:
-                ## delete the smt2 line start with (declare-fun 
-                
                 with open(file, 'r') as f:
                     lines = f.readlines()
                     for line in lines:
@@ -604,10 +593,7 @@ class CllifordCorrecter:
         s.from_file(f"data/constraints/constraints{idx}.smt2")
 
         os.remove(f"data/constraints/constraints{idx}.smt2")
-            # print(file)
-        # for c in self.soft_constraints:
-        #     s.add_soft(c)
-        ## save the model to file
+       
         constraints_smtlib = s.sexpr()
         ## write constraints to file
         import uuid
@@ -616,7 +602,6 @@ class CllifordCorrecter:
             os.makedirs(f"data/models/")
         with open(f"data/models/model{idx}.smt2", "w") as f:
             f.write(constraints_smtlib)
-    
         s.set("timeout", int(self.time_out_eff*self.n**5))
         print("Solving...")
         print(s.check())
@@ -626,15 +611,9 @@ class CllifordCorrecter:
             from time import perf_counter
             start = perf_counter()
             m = s.model()
+
             end = perf_counter()
             print("Read Time elapsed: ", end-start)
-            ## evaluate the model
-            # if s.check() == unknown:
-            #     satisfied_num = 0
-            #     for cons_soft in self.soft_constraints:
-            #         if m.evaluate(cons_soft):
-            #             satisfied_num += 1
-                # print("Satisfied soft constraints portion(%): ", (satisfied_num/len(self.soft_constraints))**100)
             start = perf_counter()
             didx = 0
             insert_idxes = []
@@ -674,3 +653,100 @@ class CllifordCorrecter:
             
             print("Read Circuit Time elapsed: ", end-start)
             return fix_program
+
+    def optimize(self):
+        """
+        Solves the Clliford solver.
+        """
+        s = Optimize()
+        # s.set("logic", "QF_UF")
+        alllines = []
+        filelines = []
+        for file in self.constraintssmt2:
+            try:
+                with open(file, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        ##drop the enter key
+                        line = line.strip('\n')
+                        if line.startswith("(declare-fun") and line not in alllines:
+                            alllines.append(line)
+                            filelines.append(line)
+                        elif not line.startswith("(declare-fun"):
+                            filelines.append(line)
+                os.remove(file)
+                
+            except Exception as e:
+                print("Error parsing SMT-LIB:")
+                raise e
+        import uuid
+        idx = uuid.uuid1()
+        with open(f"data/constraints/constraints{idx}.smt2", "w") as f:
+            for line in filelines:
+                f.write(line)
+        s.from_file(f"data/constraints/constraints{idx}.smt2")
+        s.minimize(Sum([getattr(self, gate + "vars")[q][d] for q in range(self.n) for gate in self.singleq_gates+['I'] for d in range(2*self.d_max)]))
+        s.minimize(Sum([getattr(self, gate + "vars")[q][t][d] for q in range(self.n) for t in range(self.n) for gate in self.twoq_gates if q!= t for d in range(self.d_max)]))
+        
+        os.remove(f"data/constraints/constraints{idx}.smt2")
+       
+        constraints_smtlib = s.sexpr()
+        ## write constraints to file
+        import uuid
+        idx = uuid.uuid1()
+        if not os.path.exists(f"data/models/"):
+            os.makedirs(f"data/models/")
+        with open(f"data/models/model{idx}.smt2", "w") as f:
+            f.write(constraints_smtlib)
+    
+        s.set("timeout", int(self.time_out_eff*self.n**5))
+        print("Solving...")
+        print(s.check())
+        fix_program = LayerCllifordProgram(self.n)
+        # print(s.model())
+        if s.check() == unknown or s.check() == sat:
+            from time import perf_counter
+            start = perf_counter()
+            m = s.model()
+            end = perf_counter()
+            print("Read Time elapsed: ", end-start)
+            start = perf_counter()
+            didx = 0
+            insert_idxes = []
+            insert_qubits = []
+            for d in range(len(self.program)):
+                fix_program.append(self.program[d])
+                if d not in self.insert_layer_indexes:
+                    continue
+                for _ in range(self.insert_index_counts[d]):
+                    for q in range(self.n):
+                        for gate in self.singleq_gates:
+                            method = getattr(fix_program, gate.lower())
+                            if m[getattr(self, gate + "vars")[q][2*didx]]:
+                                method(q)
+                                insert_idxes.append(d)
+                                insert_qubits.append(q)
+                    for q in range(self.n):
+                        for t in range(self.n):
+                            if q!= t:
+                                for gate in self.twoq_gates:
+                                    method = getattr(fix_program, gate.lower())
+                                    if m[getattr(self, gate + "vars")[q][t][didx]]:
+                                        method(q,t)
+                                        insert_idxes.append(d)
+                                        insert_qubits.append([q,t])
+                    for q in range(self.n):
+                        for gate in self.singleq_gates:
+                            method = getattr(fix_program, gate.lower())
+                            if m[getattr(self, gate + "vars")[q][2*didx+1]]:
+                                method(q)
+                                insert_idxes.append(d)
+                                insert_qubits.append(q)
+                    didx += 1
+            end = perf_counter()
+            self.insert_idxes = insert_idxes
+            self.insert_qubits = insert_qubits
+            
+            print("Read Circuit Time elapsed: ", end-start)
+            return fix_program
+

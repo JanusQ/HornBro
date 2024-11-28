@@ -10,7 +10,7 @@ from math import pi
 from collections.abc import Iterable
 import numpy as np
 from .utills import StabilizerTable
-
+import random
 
 def layer_to_dag(circuit: QuantumCircuit):
     instructions = []
@@ -125,19 +125,27 @@ class LayerCllifordProgram(list):
     def append_single_qubit_gate(self, gate_name: str, qubit: int):
         last_layer = self[-1] if self else None
         from functools import reduce
-        last_layer_qubits = reduce(lambda x, y: x + y['qubits'],last_layer,[])
-        if qubit in last_layer_qubits:
-            self.append([{'name': gate_name, 'qubits': [qubit]}])
+        if last_layer is not None:
+            last_layer_qubits = reduce(lambda x, y: x + y['qubits'],last_layer,[])
+            if qubit in last_layer_qubits:
+                self.append([{'name': gate_name, 'qubits': [qubit]}])
+            else:
+                self[-1].append({'name': gate_name, 'qubits': [qubit]})
         else:
-            self[-1].append({'name': gate_name, 'qubits': [qubit]})
+            self.append([{'name': gate_name, 'qubits': [qubit]}])
+        
     def append_two_qubit_gate(self, gate_name: str, qubits: tuple):
         last_layer = self[-1] if self else None
         from functools import reduce
-        last_layer_qubits = reduce(lambda x, y: x + y['qubits'],last_layer,[])
-        if all(q in last_layer_qubits for q in qubits):
-            self.append([{'name': gate_name, 'qubits': list(qubits)}])
+        if last_layer is not None:
+            last_layer_qubits = reduce(lambda x, y: x + y['qubits'],last_layer,[])
+            if all(q in last_layer_qubits for q in qubits):
+                self.append([{'name': gate_name, 'qubits': list(qubits)}])
+            else:
+                self[-1].append({'name': gate_name, 'qubits': list(qubits)})
         else:
-            self[-1].append({'name': gate_name, 'qubits': list(qubits)})
+            self.append([{'name': gate_name, 'qubits': list(qubits)}])
+        
     def h(self, qubit):
         self.append_single_qubit_gate('h', qubit)
 
@@ -433,26 +441,26 @@ class LayerCllifordProgram(list):
             while qubits:
                 randp = np.random.rand()
                 if randp < gate_portion['h']:
-                    q = np.random.choice(qubits)
+                    q = random.choice(qubits)
                     qubits.remove(q)
                     program.h(q)
                 elif randp < gate_portion['s']+gate_portion['h']:
-                    q = np.random.choice(qubits)
+                    q = random.choice(qubits)
                     qubits.remove(q)
                     program.s(q)
 
                 elif randp < gate_portion['cnot']+gate_portion['s']+gate_portion['h']:
-                    control = np.random.choice(qubits)
+                    control = random.choice(qubits)
                     qubits.remove(control)
                     if not qubits:
                         break
-                    target = np.random.choice(qubits)
+                    target = random.choice(qubits)
                     program.cnot(control, target)
                     qubits.remove(target)
                 else:
-                    q = np.random.random.choice(qubits)
+                    q = random.choice(qubits)
                     qubits.remove(q)
-            return program
+        return program
 
     def generate_bugged_program(self, n_errors: int):
         bugged_program = self.copy()

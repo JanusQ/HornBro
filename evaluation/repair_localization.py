@@ -3,7 +3,7 @@ from hornbro.dataset import load_dataset
 from qiskit import transpile
 from tqdm import tqdm
 # from hornbro.clliford.clliford_gate_variables import CllifordCorrecter
-from hornbro.clliford.cllifor_gate_parr_multilayer import CllifordCorrecter
+from hornbro.clliford.cllifor_gate_optimize import CllifordCorrecter
 from hornbro.clliford.utills import generate_inout_stabilizer_tables
 from hornbro.clliford.layercircuit import LayerCllifordProgram
 from hornbro.circuit import Circuit
@@ -19,22 +19,22 @@ def generate_bugged_program(correct_program,n_errors):
     gates = ['h','s','cx']
     buggy_idxes = []
     buggy_qubits = []
-    for idx in np.random.choice(range(len(program)), k=n_errors):
+    for idx in np.random.choice(range(len(program)),n_errors):
         error_type = random.choice(['add', 'delete'])
-        qubits = list(range(correct_program.num_qubits))
+        qubits = list(range(correct_program.n_qubits))
         if error_type == 'add':
             gate = random.choice(gates)
             qargs = [random.choice(qubits)]
-            if gate.num_qubits == 2:
+            if gate == 'cx':
                 qargs.append(random.choice([q for q in qubits if q != qargs[0]]))
             program.insert(idx, [{'name': gate, 'qubits': qargs}])
-            buggy_idxes.append(idx)
-            buggy_qubits.append(qargs)
+            buggy_idxes.append(int(idx))
+            buggy_qubits.append([int(q) for q in qargs])
         elif error_type == 'delete' and len(program[idx]) > 0:
             index = random.randint(0, len(program[idx]) - 1)
             gate = program[idx].pop(index)
-            buggy_idxes.append(idx)
-            buggy_qubits.append(gate['qubits'])
+            buggy_idxes.append(int(idx))
+            buggy_qubits.append([int(q) for q in gate['qubits']])
     return program, buggy_idxes, buggy_qubits
 
 def repair(n_qubits,n_errors):
@@ -42,10 +42,10 @@ def repair(n_qubits,n_errors):
     uid = str(uuid.uuid4())
     metrics = {}
     repair_start = perf_counter()
-    correct_program: LayerCllifordProgram = LayerCllifordProgram.random_clifford_program(n_qubits, n_layers=10, seed=42)
+    correct_program: LayerCllifordProgram = LayerCllifordProgram.random_clifford_program(n_qubits, 10)
 
     program, buggy_idxes, buggy_qubits = generate_bugged_program(correct_program,n_errors)
-    correcter = CllifordCorrecter(program, time_out_eff = 1, is_soft= True, insert_layer_indexes= np.random.choice([i for i in range(len(program))],min(3,len(program)),replace=False).tolist())
+    correcter = CllifordCorrecter(program, time_out_eff = 10, is_soft= False, insert_layer_indexes= np.random.choice([i for i in range(len(program))],min(3,len(program)),replace=False).tolist())
     inputs, outputs = [], []
     for _ in tqdm(range(min(2**n_qubits//2, 20))):
         input_stabilizer_table, output_stabilizer_table = generate_inout_stabilizer_tables(
@@ -56,7 +56,7 @@ def repair(n_qubits,n_errors):
     correcter.add_iout(inputs, outputs)
     start = perf_counter()
     solve_program = correcter.solve()  # 60
-    insert_idxes = correcter.insert_layer_indexes
+    insert_idxes = correcter.insert_idxes
     insert_qubits = correcter.insert_qubits
     end = perf_counter()
     metrics[f'clliford_time'] = end - start
@@ -79,10 +79,9 @@ def repair(n_qubits,n_errors):
     print(f"repair_time:", end - repair_start)
     print(f"similarity_score:", similarity_score / len(buggy_idxes))
 
-    correct_circuit = Circuit(correct_circuit)
          
     ## save the metrics to json
-    save_path = f'results/LocalizeRepair/haierBro/{algoname}/{n_qubits}_errors_{n_errors}/'
+    save_path = f'results/LocalizeRepair/haierBro/{n_qubits}_errors_{n_errors}/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     with open(save_path+f'metrics{uid}.json', 'w') as f:
@@ -96,18 +95,10 @@ def repair_remote(*args, **kwargs):
         # raise Exception('test')
         return repair(*args, **kwargs)
     except Exception as e:
-        with open('error.log', 'a') as f:
+        with open('errorlocation.log', 'a') as f:
             traceback.print_exc(file=f)
         return None
 if __name__ == '__main__':
-    futures = []
-    for data in load_dataset('datasetalgo/'):
-        algoname = data['algorithm']
-        n_qubits = data['n_qubits']
-        n_errors = data['n_errors']
-        qc_corrects, qc_bugs = data['right_circuits'],data['wrong_circuits']
-        futures +=[repair_remote.remote(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
-        # [repair(qc_correct, qc_bug,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
-        time.sleep(120)
-    
+    # repair(5,2)
+    futures =[repair_remote.remote(n_qubits, n_errors) for n_qubits in [5,10,15] for n_errors in [2,4,6]]    
     ray.get(futures)

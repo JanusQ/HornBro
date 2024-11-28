@@ -3,7 +3,7 @@ from hornbro.dataset import load_dataset
 from qiskit import transpile
 from tqdm import tqdm
 # from hornbro.clliford.clliford_gate_variables import CllifordCorrecter
-from hornbro.clliford.cllifor_gate_parr_multilayer import CllifordCorrecter
+from hornbro.clliford.cllifor_gate_optimize import CllifordCorrecter
 from hornbro.clliford.utills import generate_inout_stabilizer_tables
 from hornbro.clliford.layercircuit import LayerCllifordProgram
 from hornbro.circuit import Circuit
@@ -15,7 +15,7 @@ import numpy as np
 import ray
 import time
 
-def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
+def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,batchsize,id):
     basic_gates = ['cx','u']  # 'x', 'y', 'z', 'cz', 
     
     metrics = {}
@@ -42,21 +42,20 @@ def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
             outputs.append(output_stabilizer_table)
         correcter.add_iout(inputs, outputs)
         start = perf_counter()
-        solve_program = correcter.solve()  # 60
+        solve_program = correcter.optimize()  # 60
         end = perf_counter()
         metrics[f'clliford_time_{i}'] = end - start
         print(f"clliford_time_{i}:", end - start)
-        new_program = program.copy()
-        # 找不到就用旧的
-        if solve_program:
-            new_program.extend(solve_program)
-        find_program = new_program
+    
+        if solve_program is None:
+            print("No solution found")
+            solve_program = program.copy()
 
         correct_circuit = Circuit(correct_circuit)
-        optimizer:GateParameterOptimizer = GateParameterOptimizer.from_circuit(find_program)
+        optimizer:GateParameterOptimizer = GateParameterOptimizer.from_circuit(solve_program)
         input_states = generate_input_states(n_qubits, n_states=min(2**n_qubits//2, 100))
         start = perf_counter()
-        repaired_circuit, history = optimizer.optimize_mirror_with_mini_batch(correct_circuit, input_states,n_epochs=500)
+        repaired_circuit, history = optimizer.optimize_mirror_with_mini_batch(correct_circuit, input_states,n_epochs=500,batch_size=batchsize)
         dist = history.min_loss
         total_epochs = history.epoch
         end = perf_counter()
@@ -82,7 +81,7 @@ def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
         metrics['state'] = 'failed'
         
     ## save the metrics to json
-    save_path = f'results/MiniBatch/haierBro/{algoname}/{n_qubits}_errors_{n_errors}/'
+    save_path = f'results/Batchsize/{algoname}/{n_qubits}_errors_{n_errors}/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     with open(save_path+f'metrics{id}.json', 'w') as f:
@@ -103,11 +102,14 @@ def repair_remote(*args, **kwargs):
 if __name__ == '__main__':
     futures = []
     for data in load_dataset('dataset/'):
+        
         algoname = data['algorithm']
         n_qubits = data['n_qubits']
         n_errors = data['n_errors']
         qc_corrects, qc_bugs = data['right_circuits'],data['wrong_circuits']
-        # futures +=[repair_remote.remote(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
-        [repair(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
+        for batchsize in [5,10,20,50,100]:
+            futures +=[repair_remote.remote(qc_correct, qc_bug,algoname,n_qubits, n_errors, batchsize, id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
+        
+        # [repair(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
     
     ray.get(futures)
