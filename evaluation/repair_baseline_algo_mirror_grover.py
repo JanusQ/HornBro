@@ -8,15 +8,15 @@ from hornbro.clliford.utills import generate_inout_stabilizer_tables
 from hornbro.clliford.layercircuit import LayerCllifordProgram
 from hornbro.circuit import Circuit
 from hornbro.paramizefix.pennylane_siwei import GateParameterOptimizer
-from hornbro.paramizefix.qiskit import replace_param_gates_with_clifford
+from hornbro.paramizefix.qiskit import replace_param_gates_with_clifford,generate_input_states
 import json
 from time import perf_counter
 import numpy as np
 import ray
 import time
+from qiskit import QuantumCircuit
 
-def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
-    basic_gates = ['cx','u']  # 'x', 'y', 'z', 'cz', 
+def repair(correct_circuit:QuantumCircuit, bugged_circuit,algoname,n_qubits, n_errors,id):
     
     metrics = {}
     repair_start = perf_counter()
@@ -46,31 +46,25 @@ def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
         end = perf_counter()
         metrics[f'clliford_time_{i}'] = end - start
         print(f"clliford_time_{i}:", end - start)
-        new_program = program.copy()
-        # 找不到就用旧的
-        if solve_program:
-            new_program.extend(solve_program)
-        find_program = new_program
-
-        correct_circuit = Circuit(correct_circuit)
+        if solve_program is None:
+            find_program = program.copy()
+        else:
+            find_program = solve_program
+       
+        inverse_correct_circuit = Circuit(correct_circuit.inverse())
         optimizer = GateParameterOptimizer.from_circuit(find_program)
-        # input_states = generate_input_states(n_qubits, n_states=min(2**n_qubits//2, 100))
+        input_states = generate_input_states(n_qubits, n_states=min(2**n_qubits//2, 100))
         start = perf_counter()
-        repaired_circuit, history = optimizer.optimize_minor(correct_circuit, n_epochs=1000)
+        repaired_circuit, history = optimizer.optimize_mirror(inverse_correct_circuit, input_states, n_epochs=1000)
         dist = history.min_loss
         total_epochs = history.epoch
         end = perf_counter()
         metrics[f'param_time_{i}'] = end - start
         metrics[f'epochs_{i}'] = total_epochs
         metrics[f'num_params_{i}'] = optimizer.get_n_params()
-
-        
         if dist < 0.1:
             break
         
-        correct_circuit = correct_circuit.to_qiskit()
-        bugged_circuit = transpile(repaired_circuit.to_qiskit(), basis_gates=basic_gates, optimization_level=3)
-
     metrics['distance'] = float(dist)
     metrics['repaired_circuit'] = repaired_circuit.to_json()
     metrics['total_time'] = perf_counter() - repair_start
@@ -78,16 +72,12 @@ def repair(correct_circuit, bugged_circuit,algoname,n_qubits, n_errors,id):
     if dist < 0.1:
         
         metrics['state'] = 'success'
-        
-        ## save the repaired circuit as qasm
-        if not os.path.exists(f'data/repaired_circuits/{n_qubits}_errors_{n_errors}/'):
-            os.makedirs(f'data/repaired_circuits/{n_qubits}_errors_{n_errors}/')
-        repaired_circuit.to_qasm(f'data/repaired_circuits/{n_qubits}_errors_{n_errors}/repaired_circuit{id}.qasm')
+    
     else:
         metrics['state'] = 'failed'
         
     ## save the metrics to json
-    save_path = f'results/Effectiveness/haierBro/{algoname}/{n_qubits}_errors_{n_errors}/'
+    save_path = f'results/horn_bro/{algoname}/{n_qubits}_errors_{n_errors}/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     with open(save_path+f'metrics{id}.json', 'w') as f:
@@ -100,18 +90,19 @@ def repair_remote(*args, **kwargs):
         # raise Exception('test')
         return repair(*args, **kwargs)
     except Exception as e:
-        with open('error.log', 'a') as f:
+        with open('error_grover.log', 'a') as f:
             traceback.print_exc(file=f)
         return None
 if __name__ == '__main__':
     futures = []
     for data in load_dataset('dataset/'):
         algoname = data['algorithm']
+        if algoname not in ['grover']:
+            continue
         n_qubits = data['n_qubits']
         n_errors = data['n_errors']
         qc_corrects, qc_bugs = data['right_circuits'],data['wrong_circuits']
-        futures +=[repair_remote.remote(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
-        # [repair(qc_correct, qc_bug,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
-        time.sleep(120)
+        # futures +=[repair_remote.remote(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
+        [repair(qc_correct, qc_bug,algoname,n_qubits, n_errors,id=i) for i, (qc_correct, qc_bug) in enumerate(zip(qc_corrects, qc_bugs))]
     
     ray.get(futures)

@@ -81,7 +81,7 @@ def repair(n_qubits,n_errors):
 
          
     ## save the metrics to json
-    save_path = f'results/LocalizeRepair/haierBro/{n_qubits}_errors_{n_errors}/'
+    save_path = f'results/LocalizeRepair/{n_qubits}_errors_{n_errors}/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     with open(save_path+f'metrics{uid}.json', 'w') as f:
@@ -100,5 +100,5 @@ def repair_remote(*args, **kwargs):
         return None
 if __name__ == '__main__':
     # repair(5,2)
-    futures =[repair_remote.remote(n_qubits, n_errors) for n_qubits in [5,10,15] for n_errors in [2,4,6]]    
+    futures =[repair_remote.remote(n_qubits, n_errors) for _ in range(10) for n_qubits in [5,10,15] for n_errors in [2,4,6,8]]    
     ray.get(futures)

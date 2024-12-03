@@ -6,11 +6,20 @@ import os
 from mqt.bench import get_benchmark
 import argparse
 import ray
+from .grover import create_circuit as grover_circuit
 
 @ray.remote
 def get_error_right_circuit_pair(n_qubits,n_errors,algoname="random", gate_set=['h', 'cx', 'rx', 'ry', 'rz']):
     if algoname == "random":
         correct_circuit = custom_random_circuit(n_qubits,5,gate_set = gate_set)
+    if algoname == "grover":
+        correct_circuit = grover_circuit(n_qubits)
+        correct_circuit = transpile(correct_circuit, basis_gates=['h','x','y','z','u3','cx','cz'], optimization_level=1)
+        correct_circuit.remove_final_measurements()
+                ## remove barrier
+        for data in correct_circuit.data:
+            if data[0].name == 'barrier':
+                correct_circuit.data.remove(data)
     else:
         correct_circuit =  get_benchmark(benchmark_name=algoname, level="indep", circuit_size=n_qubits)
         correct_circuit = transpile(correct_circuit, basis_gates=['h','x','y','z','u3','cx','cz'], optimization_level=1)
@@ -45,13 +54,13 @@ def main():
     algos_supported = [
                         #     'ae',
                         #  'dj',
-                        'grover-noancilla',
                         'ghz',
                         'graphstate',
                         'qaoa',
                         'qft',
                         'qnn',
                         'qpeexact',
+                        'grover',
                         'qwalk-noancilla',
                         'vqe',
                         'wstate',

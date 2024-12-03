@@ -96,11 +96,12 @@ def repair_remote(*args, **kwargs):
         # raise Exception('test')
         return repair(*args, **kwargs)
     except Exception as e:
-        with open('errorminibatch.log', 'a') as f:
+        with open('logs/errorminibatch.err', 'a') as f:
             traceback.print_exc(file=f)
         return None
 if __name__ == '__main__':
     futures = []
+    ray.init()
     for data in load_dataset('dataset/'):
         
         algoname = data['algorithm']

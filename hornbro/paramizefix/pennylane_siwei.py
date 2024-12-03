@@ -342,10 +342,66 @@ class GateParameterOptimizer:
         with tqdm(total=n_epochs) as pbar:
             for _ in range(n_epochs):
                 input_states = shuffle(input_states)
-                num_batchs = len(input_states)//batch_size
-                for batch_idx in range(num_batchs):
+                num_batchs = (len(input_states)+batch_size)//batch_size
+                for batch_idx in range(num_batchs-1):
                     loss_val, grads = jax.value_and_grad(loss_batch)(
                         params, input_states[batch_idx*batch_size:(batch_idx+1)*batch_size])
+                    updates, opt_state = opt.update(grads, opt_state)
+                    params = optax.apply_updates(params, updates)
+                opt_history.update(loss_val, params)
+                pbar.update(1)
+                loss_val = round(float(loss_val), 7)
+                pbar.set_description(f"Loss: {loss_val}")
+                if opt_history.should_break:
+                    break
+
+        return assign_params(opt_history.best_params, self.circuit), opt_history
+
+    
+    def optimize_mirror_with_random_circuit_preparation(self,original_circuit_inverse: Circuit, n_epochs=50,n_batch=20, lr=0.1):
+        input_states = jnp.array(input_states,dtype=jnp.complex128)
+        n_qubits = original_circuit_inverse.n_qubits
+
+        dev = qml.device("lightning.qubit", wires=n_qubits)
+
+        @jax.jit
+        @qml.qnode(dev, interface="jax")  # interface如果没有jax就不会有梯度
+        def mirror_run( params):
+            random_input_circuit  = None
+            
+            circuit_to_pennylane(self.circuit, params)
+            circuit_to_pennylane(original_circuit_inverse)
+            return qml.probs(wires=range(n_qubits))
+        self.mirror_run = mirror_run
+        
+        n_params = self.get_n_params()
+        print("n_params:", n_params)
+
+        opt = optax.adam(learning_rate=lr)
+        params = jax.random.uniform(jax.random.PRNGKey(
+            randint(0, 200)), (n_params,), minval=-jnp.pi, maxval=jnp.pi)
+        # params = jnp.array(circuit_tape.gate_params())
+        opt_state = opt.init(params)
+
+        def loss_fn(params,input_state):
+            output_state = self.mirror_run(params,input_state)
+            return 1- jnp.abs(jnp.vdot(output_state, input_state))
+        
+        def loss_batch(params, input_states):
+            return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0))(params, input_states))
+        
+        # for input_state, target_output_state in zip(input_states, target_output_states):
+        #     output_state = self.run(input_state, params)
+        #     loss += jnp.mean(jnp.abs(output_state - target_output_state))
+        # return loss
+
+        opt_history = OptimizingHistory(
+            params, lr, 0.001, 500, n_epochs, 0.01, False)
+        with tqdm(total=n_epochs) as pbar:
+            for epoch in range(n_epochs):
+                input_states = shuffle(input_states)
+                loss_val, grads = jax.value_and_grad(loss_batch)(
+                    params, input_states[:n_batch])
                 updates, opt_state = opt.update(grads, opt_state)
                 params = optax.apply_updates(params, updates)
                 opt_history.update(loss_val, params)
@@ -358,7 +414,8 @@ class GateParameterOptimizer:
         return assign_params(opt_history.best_params, self.circuit), opt_history
 
 
-    def optimize_mirror(self,original_circuit_inverse: Circuit, input_states, n_epochs=50, n_batch=10, lr=0.1):
+
+    def optimize_mirror(self,original_circuit_inverse: Circuit, input_states, n_epochs=50, lr=0.1):
         input_states = jnp.array(input_states,dtype=jnp.complex128)
         n_qubits = original_circuit_inverse.n_qubits
 
@@ -367,7 +424,7 @@ class GateParameterOptimizer:
         @jax.jit
         @qml.qnode(dev, interface="jax")  # interface如果没有jax就不会有梯度
         def mirror_run( params,input_state):
-            qml.QubitStateVector(input_state, wires=range(n_qubits))
+            qml.StatePrep(input_state, wires=range(n_qubits))
             circuit_to_pennylane(self.circuit, params)
             circuit_to_pennylane(original_circuit_inverse)
             return qml.state()
@@ -400,7 +457,7 @@ class GateParameterOptimizer:
             for epoch in range(n_epochs):
                 input_states = shuffle(input_states)
                 loss_val, grads = jax.value_and_grad(loss_batch)(
-                    params, input_states[:n_batch])
+                    params, input_states)
                 updates, opt_state = opt.update(grads, opt_state)
                 params = optax.apply_updates(params, updates)
                 opt_history.update(loss_val, params)
