@@ -85,7 +85,7 @@ def repair(correct_circuit:QuantumCircuit, bugged_circuit,algoname,n_qubits, n_e
         metrics['state'] = 'failed'
         
     ## save the metrics to json
-    save_path = f'results/hornbro_inputs_{config.n_samples}_layers_{config.n_layers}_lr_{config.lr}_max_epochs_{config.max_epochs}_batch_size_{config.batch_size}/{algoname}/{n_qubits}_errors_{n_errors}/'
+    save_path = f'results/hornbro_samples_{config.n_samples}_layers_{config.n_layers}_lr_{config.lr}_max_epochs_{config.max_epochs}_batch_size_{config.batch_size}/{algoname}/{n_qubits}_errors_{n_errors}/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     with open(save_path+f'metrics{id}.json', 'w') as f:

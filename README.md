@@ -28,7 +28,7 @@ gendataset --qubits 5 10 15 --errors 1 2 4 8 --algorithms ghz grover --cases 50 
 ```
 Here is the meaning of each parameter, which can be also found by running `gendataset --help`:
 - `--qubits`: the number of qubits in the quantum program.
-- `--errors`: the number of errors to add to the original program.
+- `--errors`: the number of errors added in the original program.
 - `--algorithms`: the quantum algorithms to use for the program repair. the supported algorithms are [ghz,graphstate,qaoa,qft,qnn,qpeexact,grover,qwalk-noancilla,vqe,wstate,shor,groundstate,routing,tsp].
 - `--cases`: the number of programs to generate for each combination of qubits and errors.
 - `--dirname`: the directory to save the generated dataset.
@@ -57,7 +57,7 @@ The first half of `qcs.pkl` contains the original programs, and the second half 
 In python script, we can load the dataset using the following code:
 ```python
 from hornbro.dataset import load_dataset
-for data in load_dataset(dirname):
+for data in load_dataset('dataset/'): # Replace 'dataset/' with your dataset directory.
     algoname = data['algorithm']
     n_qubits = data['n_qubits']
     n_errors = data['n_errors']
@@ -120,4 +120,4 @@ which includes:
 - `--lr`: the learning rate of the gradient repair model.
 - `--batch_size`: the batch size of the gradient repair model.
 
-The results will be saved in the directory `results/hornbro_inputs_{n_samples}_layers_{n_layers}_lr_{lr}_max_epochs_{max_epochs}_batch_size_{batch_size}/`.
+The results will be saved in the directory `results/hornbro_samples_{n_samples}_layers_{n_layers}_lr_{lr}_max_epochs_{max_epochs}_batch_size_{batch_size}/`.
