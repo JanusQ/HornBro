@@ -454,7 +454,7 @@ class GateParameterOptimizer:
         opt_history = OptimizingHistory(
             params, lr, 0.001, 500, n_epochs, 0.01, False)
         with tqdm(total=n_epochs) as pbar:
-            for epoch in range(n_epochs):
+            for _ in range(n_epochs):
                 input_states = shuffle(input_states)
                 loss_val, grads = jax.value_and_grad(loss_batch)(
                     params, input_states)

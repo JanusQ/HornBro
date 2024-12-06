@@ -27,6 +27,7 @@ dependencies = [
     "networkx",
     "numpy",
     "pandas",
+    "ipykernel",
     "mqt.ddsim",
     "ray",
     "scikit_learn",
@@ -44,7 +45,7 @@ dependencies = [
 
 [project.scripts]
 gendataset = "hornbro.dataset.random_dataset:main"
-
+hornrepair = "evaluation.hornbrorepair:main"
 [tool.setuptools.packages]
 find = {}
 

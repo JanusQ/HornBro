@@ -566,8 +566,8 @@ class CllifordCorrecter:
         """
         Solves the Clliford solver.
         """
-        # self.unique_gate()
-        # self.inverse_cancel()
+        self.unique_gate()
+        self.inverse_cancel()
         if self.is_soft or minimize_gates:
             s = Optimize()
             # s.minimize(Sum(self.Xvars[q][d] for q in range(self.n) for d in range(2*self.d_max)))

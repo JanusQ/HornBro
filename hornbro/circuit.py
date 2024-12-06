@@ -312,6 +312,9 @@ def circuit_to_qiskit(circuit: Circuit, barrier=True) -> QuantumCircuit:
                     name)(float(params[0]), qubits[0])
             elif name in ('cz', 'cx'):
                 assert len(params) == 0 and len(qubits) == 2
+                if qubits[0] == qubits[1]:
+                    print('Warning: CX on the same qubit')
+                    continue
                 qiskit_circuit.__getattribute__(name)(qubits[0], qubits[1])
             elif name in ('h', 'z', 'x', 's', 'y'):
                 qiskit_circuit.__getattribute__(name)(qubits[0])
