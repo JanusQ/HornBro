@@ -264,8 +264,8 @@ if __name__ == "__main__":
     futures = []
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--baseline', type=str, default='chatgpt')
-    parser.add_argument('--datasetdir', type=str, default='all')
+    parser.add_argument('--baseline', type=str, default='chatgpt', choices=list(baselines.keys()), help='the name of the baseline')
+    parser.add_argument('--datasetdir', type=str, default='dataset/', help='the directory of the dataset')
     args = parser.parse_args()
     for data in load_dataset(args.datasetdir):
         algoname = data['algorithm']
